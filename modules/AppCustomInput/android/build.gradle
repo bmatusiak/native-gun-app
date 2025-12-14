@@ -1,9 +1,38 @@
 apply plugin: 'com.android.library'
 
+group = 'com.appcustominput'
+version = '0.1.0'
+
+android {
+  compileSdkVersion 36
+  namespace 'com.appcustominput'
+  defaultConfig {
+    minSdkVersion 24
+    targetSdkVersion 36
+    versionCode 1
+    versionName "0.1.0"
+  }
+  lintOptions { abortOnError false }
+}
+
+dependencies {
+  // React Native will provide its android dependency via the root project
+  implementation "com.facebook.react:react-native:+"
+}
+apply plugin: 'com.android.library'
+
 group = 'expo.modules.appcustominput'
 version = '0.1.0'
 
-def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+// Locate the Expo Modules Core Gradle plugin. Prefer the local node_modules copy when available,
+// otherwise fall back to an included composite project (project(":expo-modules-core")).
+def nodePluginPath = new File(rootProject.projectDir.parentFile, "node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle")
+def expoModulesCorePlugin
+if (nodePluginPath.exists()) {
+  expoModulesCorePlugin = nodePluginPath
+} else {
+  expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+}
 apply from: expoModulesCorePlugin
 applyKotlinExpoModulesCorePlugin()
 useCoreDependencies()

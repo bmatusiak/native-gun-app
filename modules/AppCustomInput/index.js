@@ -1,3 +1,8 @@
-// Reexport the native module. On web, it will be resolved to AppCustomInputModule.web.js
-// and on native platforms to AppCustomInputModule.js
-export { default } from './AppCustomInputModule';
+
+
+import CustomTextInput from './src/CustomTextInput.android'
+
+// Export the native-backed component only. The component handles starting
+// the native listener internally on mount, and the app should continue to
+// use DeviceEventEmitter or other mechanisms to receive `keyboardInputContent`.
+export default CustomTextInput

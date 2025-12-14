@@ -15,7 +15,7 @@ import {
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import GunService from '../GunService';
-import CustomTextInput from '../components/CustomTextInput.android';
+import CustomTextInput from 'app-custom-input';
 import * as FileSystem from 'expo-file-system';
 
 export default function ChatScreen() {

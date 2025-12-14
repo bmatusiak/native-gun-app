@@ -1,12 +1,19 @@
-import { requireNativeComponent, Platform } from 'react-native';
-import React from 'react';
+import React, { useEffect } from 'react';
+import { Platform, requireNativeComponent, NativeModules } from 'react-native';
 
 const NativeInput = requireNativeComponent('RNCustomGifTextInput');
 
 export default function CustomTextInput(props) {
     if (Platform.OS !== 'android') return null;
-    // map `value` prop to native `value`, and forward style and event handlers
     const { value, onChangeText, style, ...rest } = props;
+
+    useEffect(() => {
+        try {
+            const mod = NativeModules.AppCustomInput
+            if (mod && typeof mod.startListening === 'function') mod.startListening()
+        } catch (e) { }
+    }, [])
+
     return (
         <NativeInput
             value={value}
