@@ -63,6 +63,15 @@ class CustomReactEditText(context: ThemedReactContext) : ReactEditText(context) 
             uri?.toString()?.let { map.putString("uri", it) }
             mime?.let { map.putString("mime", it) }
             b64?.let { map.putString("gifBase64", it) }
+            try {
+              val rect = android.graphics.Rect()
+              val activity = reactContext.currentActivity
+              activity?.window?.decorView?.getWindowVisibleDisplayFrame(rect)
+              val visibleHeight = rect.height()
+              val totalHeight = this.rootView?.height ?: 0
+              val kb = if (totalHeight > visibleHeight) totalHeight - visibleHeight else 0
+              map.putInt("keyboardVisibleHeight", kb)
+            } catch (e: Exception) { /* ignore */ }
             reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
               .emit("keyboardInputContent", map)
           }

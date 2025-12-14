@@ -1,17 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import {
-    KeyboardAvoidingView,
-    Platform,
-    View,
-    Text,
-    ScrollView,
-    TextInput,
-    Button,
-    StyleSheet,
-    Keyboard,
-    DeviceEventEmitter,
-    Image,
-} from 'react-native';
+import { Platform, View, Text, ScrollView, TextInput, Button, StyleSheet, Keyboard, DeviceEventEmitter, Image, KeyboardAvoidingView } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import GunService from '../GunService';
@@ -24,6 +12,7 @@ export default function ChatScreen() {
     const seen = useRef(new Set());
     const scrollRef = useRef(null);
     const [keyboardHeight, setKeyboardHeight] = useState(0);
+    const [nativeKbDebug, setNativeKbDebug] = useState(null);
     const [preview, setPreview] = useState(null);
     const hiddenInputRef = useRef(null);
 
@@ -46,12 +35,15 @@ export default function ChatScreen() {
     useEffect(() => {
         const sub = DeviceEventEmitter.addListener('keyboardInputContent', async (payload) => {
             if (!payload) return;
-            // show preview UI instead of sending immediately
+            // console.log('keyboardInputContent payload', payload);
+            if (payload.keyboardVisibleHeight != null) {
+                const h = Number(payload.keyboardVisibleHeight) || 0;
+                setKeyboardHeight(h);
+                setNativeKbDebug(h);
+            }
             const mime = payload.mime;
             if (payload.gifBase64) {
                 setPreview({ gifBase64: payload.gifBase64, mime });
-                // try to keep keyboard present by focusing the hidden input
-                try { hiddenInputRef.current && hiddenInputRef.current.focus(); } catch (e) { }
                 return;
             }
             if (!payload.uri) return;
@@ -59,16 +51,38 @@ export default function ChatScreen() {
             try {
                 const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
                 setPreview({ gifBase64: b64, mime });
-                try { hiddenInputRef.current && hiddenInputRef.current.focus(); } catch (e) { }
             } catch (e) {
-                // if reading fails, show optimistic preview from uri
                 setPreview({ gifUri: uri, mime });
-                try { hiddenInputRef.current && hiddenInputRef.current.focus(); } catch (e) { }
             }
         });
         return () => sub.remove();
     }, []);
 
+    // listen to native global-layout / insets emitted keyboard height changes (covers IME panels)
+    useEffect(() => {
+        const hsub = DeviceEventEmitter.addListener('keyboardHeightChanged', (payload) => {
+            if (!payload) return;
+            console.log('keyboardHeightChanged payload', payload);
+            // Prefer WindowInsets-provided IME height when available
+            if (payload.imeHeightPx != null) {
+                const imeH = Number(payload.imeHeightPx) || 0;
+                const isFloating = !!payload.isFloating;
+                // if IME is floating, don't push the input
+                setKeyboardHeight(isFloating ? 0 : imeH);
+                setNativeKbDebug(`${imeH}${isFloating ? ' (floating)' : ''}`);
+                return;
+            }
+            // fallback to previous keyboardVisibleHeight field
+            if (payload.keyboardVisibleHeight != null) {
+                const h = Number(payload.keyboardVisibleHeight) || 0;
+                setKeyboardHeight(h);
+                setNativeKbDebug(h);
+            }
+        });
+        return () => hsub.remove();
+    }, []);
+
+    // also listen to RN keyboard events for regular keyboard open/close
     useEffect(() => {
         const show = (e) => setKeyboardHeight(e.endCoordinates ? e.endCoordinates.height : 0);
         const hide = () => setKeyboardHeight(0);
@@ -100,13 +114,40 @@ export default function ChatScreen() {
         }
     };
 
+    const sendPreview = () => {
+        const bodyText = (text || '').trim();
+        const attachments = preview.gifBase64
+            ? [{ gifBase64: preview.gifBase64, mime: preview.mime }]
+            : preview.gifUri
+                ? [{ gifUri: preview.gifUri, mime: preview.mime }]
+                : [];
+        GunService.sendMessage({ text: bodyText, author: 'mobile', attachments });
+        setPreview(null);
+        setText('');
+    };
+
     return (
         <SafeAreaView style={styles.container}>
-            <View style={styles.content}>
-                <ScrollView ref={scrollRef} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+            <KeyboardAvoidingView
+                style={styles.content}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={0}
+            >
+                <ScrollView
+                    ref={scrollRef}
+                    contentContainerStyle={[
+                        styles.scrollContent,
+                        { paddingBottom: 24 + (keyboardHeight || 0) + 20 },
+                    ]}
+                    keyboardShouldPersistTaps="handled"
+                >
                     {messages.map((m) => {
                         const key = m.id || m._key || String(m.ts || Math.random());
-                        const attachments = (m.attachments && m.attachments.length) ? m.attachments : ((m.gifBase64 || m.gifUri) ? [{ gifBase64: m.gifBase64, gifUri: m.gifUri, mime: m.mime }] : []);
+                        const attachments = (m.attachments && m.attachments.length)
+                            ? m.attachments
+                            : (m.gifBase64 || m.gifUri)
+                                ? [{ gifBase64: m.gifBase64, gifUri: m.gifUri, mime: m.mime }]
+                                : [];
                         return (
                             <View key={key} style={styles.msg}>
                                 <Text style={styles.meta}>{m.author} • {m.ts ? new Date(m.ts).toLocaleTimeString() : ''}</Text>
@@ -143,9 +184,14 @@ export default function ChatScreen() {
                         );
                     })}
                 </ScrollView>
-            </View>
+                {typeof nativeKbDebug === 'number' ? (
+                    <View style={styles.debugBar} pointerEvents="none">
+                        <Text style={styles.debugText}>kb:{keyboardHeight} native:{nativeKbDebug}</Text>
+                    </View>
+                ) : null}
+            </KeyboardAvoidingView>
 
-            <View style={styles.inputRowWrapper}>
+            <View style={[styles.inputRowWrapper, { bottom: keyboardHeight + (Platform.OS === 'android' ? 20 : 0) }]}>
                 <View style={styles.inputRow}>
                     {Platform.OS === 'android' ? (
                         <CustomTextInput
@@ -166,7 +212,8 @@ export default function ChatScreen() {
                             onSubmitEditing={send}
                         />
                     )}
-                    {/* Hidden JS TextInput used to re-open keyboard when needed */}
+
+                    {/* Hidden JS TextInput kept for future use, not focused by default */}
                     <TextInput ref={hiddenInputRef} style={{ height: 0, width: 0, opacity: 0 }} />
 
                     {preview ? (
@@ -177,38 +224,27 @@ export default function ChatScreen() {
                                 <Image source={{ uri: preview.gifUri }} style={styles.preview} />
                             ) : null}
                             <View style={styles.previewButtons}>
-                                <Button title="Send" onPress={() => {
-                                    const bodyText = (text || '').trim();
-                                    const attachments = preview.gifBase64 ? [{ gifBase64: preview.gifBase64, mime: preview.mime }] : preview.gifUri ? [{ gifUri: preview.gifUri, mime: preview.mime }] : [];
-                                    GunService.sendMessage({ text: bodyText, author: 'mobile', attachments });
-                                    setPreview(null);
-                                    setText('');
-                                    try { hiddenInputRef.current && hiddenInputRef.current.focus(); } catch (e) { }
-                                }} />
-                                <Button title="Cancel" onPress={() => {
-                                    setPreview(null);
-                                    try { hiddenInputRef.current && hiddenInputRef.current.focus(); } catch (e) { }
-                                }} />
+                                <Button title="Send" onPress={sendPreview} />
+                                <Button title="Cancel" onPress={() => setPreview(null)} />
                             </View>
                         </View>
                     ) : (
                         <Button title="Send" onPress={send} />
                     )}
                 </View>
-                <View style={{ height: keyboardHeight }} />
             </View>
         </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
+    container: { flex: 1, position: 'relative' },
     content: { flex: 1 },
     scrollContent: { padding: 12, paddingBottom: 24 },
     msg: { paddingVertical: 8, borderBottomWidth: 1, borderColor: '#eee' },
     gif: { width: 200, height: 200, resizeMode: 'cover', marginTop: 8 },
     meta: { fontSize: 12, color: '#666', marginBottom: 4 },
-    inputRowWrapper: { borderTopWidth: 1, borderColor: '#eee', backgroundColor: '#fff' },
+    inputRowWrapper: { position: 'absolute', left: 0, right: 0, borderTopWidth: 1, borderColor: '#eee', backgroundColor: '#fff', zIndex: 50, elevation: 10 },
     inputRow: { flexDirection: 'row', alignItems: 'center', padding: 8, paddingHorizontal: 12 },
     input: { flex: 1, borderWidth: 1, borderColor: '#ddd', padding: 8, marginRight: 8, borderRadius: 4, height: 40 },
     previewContainer: { flexDirection: 'row', alignItems: 'center', marginLeft: 8 },
@@ -217,5 +253,7 @@ const styles = StyleSheet.create({
     attachmentsHorizontal: { marginTop: 8 },
     attachmentImage: { width: 140, height: 140, resizeMode: 'cover', marginRight: 8, borderRadius: 6 },
     caption: { marginTop: 6, color: '#222' },
+    debugBar: { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+    debugText: { color: '#fff', fontSize: 11 },
 });
 
