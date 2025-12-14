@@ -24,6 +24,8 @@ export default function ChatScreen() {
     const seen = useRef(new Set());
     const scrollRef = useRef(null);
     const [keyboardHeight, setKeyboardHeight] = useState(0);
+    const [preview, setPreview] = useState(null);
+    const hiddenInputRef = useRef(null);
 
     useEffect(() => {
         const onMsg = (msg) => {
@@ -41,31 +43,27 @@ export default function ChatScreen() {
         GunService.subscribeMessages(onMsg);
     }, []);
 
-    // listen for keyboard committed content from native (GIFs/images)
     useEffect(() => {
         const sub = DeviceEventEmitter.addListener('keyboardInputContent', async (payload) => {
             if (!payload) return;
+            // show preview UI instead of sending immediately
             const mime = payload.mime;
             if (payload.gifBase64) {
-                // native already provided base64 data — send via Gun
-                GunService.sendMessage({ text: '', author: 'mobile', gifBase64: payload.gifBase64, mime });
+                setPreview({ gifBase64: payload.gifBase64, mime });
+                // try to keep keyboard present by focusing the hidden input
+                try { hiddenInputRef.current && hiddenInputRef.current.focus(); } catch (e) { }
                 return;
             }
             if (!payload.uri) return;
             const uri = payload.uri;
             try {
-                // try to read the committed content as base64 and send via Gun
                 const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-                // send via Gun (this will propagate to peers and trigger subscribeMessages)
-                GunService.sendMessage({ text: '', author: 'mobile', gifBase64: b64, mime });
+                setPreview({ gifBase64: b64, mime });
+                try { hiddenInputRef.current && hiddenInputRef.current.focus(); } catch (e) { }
             } catch (e) {
-                // if reading fails, fall back to optimistic local display using the content URI
-                const gifMsg = { id: Date.now().toString(), text: '', author: 'keyboard', ts: Date.now(), gifUri: uri, mime };
-                setMessages((prev) => {
-                    const next = [...prev, gifMsg];
-                    next.sort((a, b) => (a.ts || 0) - (b.ts || 0));
-                    return next;
-                });
+                // if reading fails, show optimistic preview from uri
+                setPreview({ gifUri: uri, mime });
+                try { hiddenInputRef.current && hiddenInputRef.current.focus(); } catch (e) { }
             }
         });
         return () => sub.remove();
@@ -106,18 +104,44 @@ export default function ChatScreen() {
         <SafeAreaView style={styles.container}>
             <View style={styles.content}>
                 <ScrollView ref={scrollRef} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-                    {messages.map((m) => (
-                        <View key={m.id || m._key || String(m.ts || Math.random())} style={styles.msg}>
-                            <Text style={styles.meta}>{m.author} • {m.ts ? new Date(m.ts).toLocaleTimeString() : ''}</Text>
-                            {m.gifBase64 ? (
-                                <Image source={{ uri: `data:${m.mime || 'image/gif'};base64,${m.gifBase64}` }} style={styles.gif} />
-                            ) : m.gifUri ? (
-                                <Image source={{ uri: m.gifUri }} style={styles.gif} />
-                            ) : (
-                                <Text>{m.text}</Text>
-                            )}
-                        </View>
-                    ))}
+                    {messages.map((m) => {
+                        const key = m.id || m._key || String(m.ts || Math.random());
+                        const attachments = (m.attachments && m.attachments.length) ? m.attachments : ((m.gifBase64 || m.gifUri) ? [{ gifBase64: m.gifBase64, gifUri: m.gifUri, mime: m.mime }] : []);
+                        return (
+                            <View key={key} style={styles.msg}>
+                                <Text style={styles.meta}>{m.author} • {m.ts ? new Date(m.ts).toLocaleTimeString() : ''}</Text>
+                                {attachments.length === 0 ? (
+                                    <Text>{m.text}</Text>
+                                ) : attachments.length === 1 ? (
+                                    <View>
+                                        {attachments[0].gifBase64 ? (
+                                            <Image source={{ uri: `data:${attachments[0].mime || 'image/gif'};base64,${attachments[0].gifBase64}` }} style={styles.gif} />
+                                        ) : attachments[0].gifUri ? (
+                                            <Image source={{ uri: attachments[0].gifUri }} style={styles.gif} />
+                                        ) : null}
+                                        {m.text && String(m.text).trim() ? (
+                                            <Text style={styles.caption}>{m.text}</Text>
+                                        ) : null}
+                                    </View>
+                                ) : (
+                                    <View>
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.attachmentsHorizontal}>
+                                            {attachments.map((a, i) => (
+                                                a.gifBase64 ? (
+                                                    <Image key={i} source={{ uri: `data:${a.mime || 'image/gif'};base64,${a.gifBase64}` }} style={styles.attachmentImage} />
+                                                ) : a.gifUri ? (
+                                                    <Image key={i} source={{ uri: a.gifUri }} style={styles.attachmentImage} />
+                                                ) : null
+                                            ))}
+                                        </ScrollView>
+                                        {m.text && String(m.text).trim() ? (
+                                            <Text style={styles.caption}>{m.text}</Text>
+                                        ) : null}
+                                    </View>
+                                )}
+                            </View>
+                        );
+                    })}
                 </ScrollView>
             </View>
 
@@ -142,7 +166,34 @@ export default function ChatScreen() {
                             onSubmitEditing={send}
                         />
                     )}
-                    <Button title="Send" onPress={send} />
+                    {/* Hidden JS TextInput used to re-open keyboard when needed */}
+                    <TextInput ref={hiddenInputRef} style={{ height: 0, width: 0, opacity: 0 }} />
+
+                    {preview ? (
+                        <View style={styles.previewContainer}>
+                            {preview.gifBase64 ? (
+                                <Image source={{ uri: `data:${preview.mime || 'image/gif'};base64,${preview.gifBase64}` }} style={styles.preview} />
+                            ) : preview.gifUri ? (
+                                <Image source={{ uri: preview.gifUri }} style={styles.preview} />
+                            ) : null}
+                            <View style={styles.previewButtons}>
+                                <Button title="Send" onPress={() => {
+                                    const bodyText = (text || '').trim();
+                                    const attachments = preview.gifBase64 ? [{ gifBase64: preview.gifBase64, mime: preview.mime }] : preview.gifUri ? [{ gifUri: preview.gifUri, mime: preview.mime }] : [];
+                                    GunService.sendMessage({ text: bodyText, author: 'mobile', attachments });
+                                    setPreview(null);
+                                    setText('');
+                                    try { hiddenInputRef.current && hiddenInputRef.current.focus(); } catch (e) { }
+                                }} />
+                                <Button title="Cancel" onPress={() => {
+                                    setPreview(null);
+                                    try { hiddenInputRef.current && hiddenInputRef.current.focus(); } catch (e) { }
+                                }} />
+                            </View>
+                        </View>
+                    ) : (
+                        <Button title="Send" onPress={send} />
+                    )}
                 </View>
                 <View style={{ height: keyboardHeight }} />
             </View>
@@ -160,5 +211,11 @@ const styles = StyleSheet.create({
     inputRowWrapper: { borderTopWidth: 1, borderColor: '#eee', backgroundColor: '#fff' },
     inputRow: { flexDirection: 'row', alignItems: 'center', padding: 8, paddingHorizontal: 12 },
     input: { flex: 1, borderWidth: 1, borderColor: '#ddd', padding: 8, marginRight: 8, borderRadius: 4, height: 40 },
+    previewContainer: { flexDirection: 'row', alignItems: 'center', marginLeft: 8 },
+    preview: { width: 80, height: 80, resizeMode: 'cover', borderRadius: 6, marginRight: 8 },
+    previewButtons: { flexDirection: 'column', justifyContent: 'space-between', height: 80 },
+    attachmentsHorizontal: { marginTop: 8 },
+    attachmentImage: { width: 140, height: 140, resizeMode: 'cover', marginRight: 8, borderRadius: 6 },
+    caption: { marginTop: 6, color: '#222' },
 });
 

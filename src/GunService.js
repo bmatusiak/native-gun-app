@@ -65,14 +65,17 @@ async function loadPair() {
     }
 }
 
-function sendMessage({ id, text, author, gifBase64, mime }) {
+function sendMessage({ id, text, author, gifBase64, mime, attachments }) {
     const msg = {
         id: id || Date.now().toString(),
         text,
         author: author || 'anon',
         ts: Date.now(),
     };
-    if (gifBase64) {
+    // support legacy single-image fields or new attachments array
+    if (attachments && Array.isArray(attachments) && attachments.length) {
+        msg.attachments = attachments;
+    } else if (gifBase64) {
         msg.gifBase64 = gifBase64;
         if (mime) msg.mime = mime;
     }
