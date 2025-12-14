@@ -9,7 +9,8 @@
     "android:logcat": "adb logcat *:S ReactNative:V ReactNativeJS:V ReactNativeApp:D",
     "ios" : "echo 'iOS not supported yet'",
     "prebuild": "expo prebuild --clean -p android",
-    "android:kill": "node -e \"const pkg=require('./app.json').expo.android.package; require('child_process').execSync('adb shell am force-stop ' + pkg)\""
+    "android:kill": "node -e \"const pkg=require('./app.json').expo.android.package; require('child_process').execSync('adb shell am force-stop ' + pkg)\"",
+    "android:uninstall": "node -e \"const pkg=require('./app.json').expo.android.package; require('child_process').execSync('adb uninstall ' + pkg)\""
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
