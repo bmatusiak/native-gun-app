@@ -1,34 +1,32 @@
-# Native GUN Example (Expo)
 
-This small Expo example demonstrates using `native-gun` in a React Native app with:
+# Running the app
 
-- Realtime chat (`/chat/messages`)
-- Simple key-value store (`/kv/{key}`)
-- Peers management + SEA keypair creation
+This project provides convenient npm scripts that wrap Expo commands.
 
-Quick start
-
-1. Install dependencies (run in `my-app`):
+- Start the development build and Metro bundler (recommended):
 
 ```bash
-npm install native-gun @react-native-async-storage/async-storage
-npx expo start
+npm start
 ```
 
-2. Open the app in Expo Go or a simulator.
+- Build and install the Android development build (no bundler):
 
-Notes
+```bash
+npm run android
+```
 
-- `native-gun` includes React Native shims; no additional random-value polyfill is required.
-- Persistent storage uses `@react-native-async-storage/async-storage` when available.
-- To configure a default relay, open `src/GunService.js` and call `setPeers([...])` or use the `Peers` tab.
+- Start Expo dev client bundler only (used by `npm start`):
 
-Files of interest
+```bash
+npm run bundler
+```
 
-- `App.js` — tab navigation
-- `src/GunService.js` — Gun init, peers and basic SEA helpers
-- `src/screens/ChatScreen.js` — chat UI
-- `src/screens/KVScreen.js` — key/value UI
-- `src/screens/PeersScreen.js` — add peers and create SEA identity
+- Stream Android logs (filters React Native and app logs):
 
-If you want, I can wire automatic relay defaults, add signed messages with SEA, or persist user profiles next.
+```bash
+npm run android:logcat
+```
+
+Notes:
+- `npm run android` uses Expo's `run:android` to build and install the dev build; avoid calling Gradle directly.
+- Use `npm start` to run both the native build (via `npm run android`) and the Metro bundler together.

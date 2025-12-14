@@ -33,9 +33,10 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
   @ReactMethod
   fun startListening() {
     if (listening) return
+    AppCustomInputDebug.init(reactApplicationContext)
     val activity: Activity? = reactApplicationContext.currentActivity
     if (activity == null) {
-      Log.w("AppCustomInput", "no current activity to attach listener")
+      AppCustomInputDebug.w("AppCustomInput", "no current activity to attach listener")
       return
     }
     val root: View = activity.window.decorView
@@ -63,7 +64,7 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
               reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 .emit("keyboardHeightChanged", map)
             } catch (e: Exception) {
-              Log.w("AppCustomInput", "failed to emit keyboardHeightChanged from insets: ${e.message}")
+              AppCustomInputDebug.w("AppCustomInput", "failed to emit keyboardHeightChanged from insets: ${e.message}")
             }
           } catch (e: Exception) {}
           insets
@@ -72,7 +73,7 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
         observedRoot = root
       }
     } catch (e: Exception) {
-      Log.w("AppCustomInput", "insets listener attach failed: ${e.message}")
+      AppCustomInputDebug.w("AppCustomInput", "insets listener attach failed: ${e.message}")
     }
     // attach a global layout listener to observe window visible changes (IME, GIF panel, etc.)
     try {
@@ -90,7 +91,7 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
               reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 .emit("keyboardHeightChanged", map)
             } catch (e: Exception) {
-              Log.w("AppCustomInput", "failed to emit keyboardHeightChanged: ${e.message}")
+              AppCustomInputDebug.w("AppCustomInput", "failed to emit keyboardHeightChanged: ${e.message}")
             }
           } catch (e: Exception) {}
         }
@@ -98,7 +99,7 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
         observedRoot = root
       }
     } catch (e: Exception) {
-      Log.w("AppCustomInput", "global layout listener attach failed: ${e.message}")
+      AppCustomInputDebug.w("AppCustomInput", "global layout listener attach failed: ${e.message}")
     }
       try {
       androidx.core.view.ViewCompat.setOnReceiveContentListener(root, arrayOf("image/*", "image/gif", "image/webp"), androidx.core.view.OnReceiveContentListener { view, payload ->
@@ -125,7 +126,7 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
                 bos.close()
               }
             } catch (e: Exception) {
-              Log.w("AppCustomInput", "failed to read content: ${e.message}")
+              AppCustomInputDebug.w("AppCustomInput", "failed to read content: ${e.message}")
             }
 
             val map: WritableMap = Arguments.createMap()
@@ -148,17 +149,17 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
               reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 .emit("keyboardInputContent", map)
             } catch (e: Exception) {
-              Log.w("AppCustomInput", "failed to emit event: ${e.message}")
+              AppCustomInputDebug.w("AppCustomInput", "failed to emit event: ${e.message}")
             }
           }
         } catch (e: Exception) {
-          Log.w("AppCustomInput", "receive content error: ${e.message}")
+          AppCustomInputDebug.w("AppCustomInput", "receive content error: ${e.message}")
         }
         null
       })
       listening = true
     } catch (e: Exception) {
-      Log.w("AppCustomInput", "setOnReceiveContentListener failed: ${e.message}")
+      AppCustomInputDebug.w("AppCustomInput", "setOnReceiveContentListener failed: ${e.message}")
     }
   }
 
@@ -174,7 +175,7 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
         }
       }
     } catch (e: Exception) {
-      Log.w("AppCustomInput", "remove global layout listener failed: ${e.message}")
+        AppCustomInputDebug.w("AppCustomInput", "remove global layout listener failed: ${e.message}")
     }
     globalLayoutListener = null
     observedRoot = null

@@ -23,6 +23,7 @@
       "edgeToEdgeEnabled": true,
       "package": "com.bmatusiak.myapp"
     },
+    "scheme": "myapp",
     "web": {
       "favicon": "./assets/favicon.png"
     }

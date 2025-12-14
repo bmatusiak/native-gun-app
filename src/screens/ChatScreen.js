@@ -3,7 +3,7 @@ import { Platform, View, Text, ScrollView, TextInput, Button, StyleSheet, Keyboa
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import GunService from '../GunService';
-import CustomTextInput from 'app-custom-input';
+import CustomTextInput, { KeyboardDebugPanel } from 'app-custom-input';
 import * as FileSystem from 'expo-file-system';
 
 export default function ChatScreen() {
@@ -12,7 +12,6 @@ export default function ChatScreen() {
     const seen = useRef(new Set());
     const scrollRef = useRef(null);
     const [keyboardHeight, setKeyboardHeight] = useState(0);
-    const [nativeKbDebug, setNativeKbDebug] = useState(null);
     const [preview, setPreview] = useState(null);
     const hiddenInputRef = useRef(null);
 
@@ -39,7 +38,6 @@ export default function ChatScreen() {
             if (payload.keyboardVisibleHeight != null) {
                 const h = Number(payload.keyboardVisibleHeight) || 0;
                 setKeyboardHeight(h);
-                setNativeKbDebug(h);
             }
             const mime = payload.mime;
             if (payload.gifBase64) {
@@ -62,21 +60,18 @@ export default function ChatScreen() {
     useEffect(() => {
         const hsub = DeviceEventEmitter.addListener('keyboardHeightChanged', (payload) => {
             if (!payload) return;
-            console.log('keyboardHeightChanged payload', payload);
             // Prefer WindowInsets-provided IME height when available
             if (payload.imeHeightPx != null) {
                 const imeH = Number(payload.imeHeightPx) || 0;
                 const isFloating = !!payload.isFloating;
                 // if IME is floating, don't push the input
                 setKeyboardHeight(isFloating ? 0 : imeH);
-                setNativeKbDebug(`${imeH}${isFloating ? ' (floating)' : ''}`);
                 return;
             }
             // fallback to previous keyboardVisibleHeight field
             if (payload.keyboardVisibleHeight != null) {
                 const h = Number(payload.keyboardVisibleHeight) || 0;
                 setKeyboardHeight(h);
-                setNativeKbDebug(h);
             }
         });
         return () => hsub.remove();
@@ -135,10 +130,8 @@ export default function ChatScreen() {
             >
                 <ScrollView
                     ref={scrollRef}
-                    contentContainerStyle={[
-                        styles.scrollContent,
-                        { paddingBottom: 24 + (keyboardHeight || 0) + 20 },
-                    ]}
+                    style={{ flex: 1 }}
+                    contentContainerStyle={styles.scrollContent}
                     keyboardShouldPersistTaps="handled"
                 >
                     {messages.map((m) => {
@@ -184,55 +177,51 @@ export default function ChatScreen() {
                         );
                     })}
                 </ScrollView>
-                {typeof nativeKbDebug === 'number' ? (
-                    <View style={styles.debugBar} pointerEvents="none">
-                        <Text style={styles.debugText}>kb:{keyboardHeight} native:{nativeKbDebug}</Text>
-                    </View>
-                ) : null}
-            </KeyboardAvoidingView>
+                <KeyboardDebugPanel visible={true} style={styles.debugBar} />
 
-            <View style={[styles.inputRowWrapper, { bottom: keyboardHeight + (Platform.OS === 'android' ? 20 : 0) }]}>
-                <View style={styles.inputRow}>
-                    {Platform.OS === 'android' ? (
-                        <CustomTextInput
-                            style={styles.input}
-                            value={text}
-                            onChangeText={setText}
-                            placeholder="Message"
-                            returnKeyType="send"
-                            onSubmitEditing={send}
-                        />
-                    ) : (
-                        <TextInput
-                            style={styles.input}
-                            value={text}
-                            onChangeText={setText}
-                            placeholder="Message"
-                            returnKeyType="send"
-                            onSubmitEditing={send}
-                        />
-                    )}
+                <View style={styles.inputRowWrapper}>
+                    <View style={styles.inputRow}>
+                        {Platform.OS === 'android' ? (
+                            <CustomTextInput
+                                style={styles.input}
+                                value={text}
+                                onChangeText={setText}
+                                placeholder="Message"
+                                returnKeyType="send"
+                                onSubmitEditing={send}
+                            />
+                        ) : (
+                            <TextInput
+                                style={styles.input}
+                                value={text}
+                                onChangeText={setText}
+                                placeholder="Message"
+                                returnKeyType="send"
+                                onSubmitEditing={send}
+                            />
+                        )}
 
-                    {/* Hidden JS TextInput kept for future use, not focused by default */}
-                    <TextInput ref={hiddenInputRef} style={{ height: 0, width: 0, opacity: 0 }} />
+                        {/* Hidden JS TextInput kept for future use, not focused by default */}
+                        <TextInput ref={hiddenInputRef} style={{ height: 0, width: 0, opacity: 0 }} />
 
-                    {preview ? (
-                        <View style={styles.previewContainer}>
-                            {preview.gifBase64 ? (
-                                <Image source={{ uri: `data:${preview.mime || 'image/gif'};base64,${preview.gifBase64}` }} style={styles.preview} />
-                            ) : preview.gifUri ? (
-                                <Image source={{ uri: preview.gifUri }} style={styles.preview} />
-                            ) : null}
-                            <View style={styles.previewButtons}>
-                                <Button title="Send" onPress={sendPreview} />
-                                <Button title="Cancel" onPress={() => setPreview(null)} />
+                        {preview ? (
+                            <View style={styles.previewContainer}>
+                                {preview.gifBase64 ? (
+                                    <Image source={{ uri: `data:${preview.mime || 'image/gif'};base64,${preview.gifBase64}` }} style={styles.preview} />
+                                ) : preview.gifUri ? (
+                                    <Image source={{ uri: preview.gifUri }} style={styles.preview} />
+                                ) : null}
+                                <View style={styles.previewButtons}>
+                                    <Button title="Send" onPress={sendPreview} />
+                                    <Button title="Cancel" onPress={() => setPreview(null)} />
+                                </View>
                             </View>
-                        </View>
-                    ) : (
-                        <Button title="Send" onPress={send} />
-                    )}
+                        ) : (
+                            <Button title="Send" onPress={send} />
+                        )}
+                    </View>
                 </View>
-            </View>
+            </KeyboardAvoidingView>
         </SafeAreaView>
     );
 }
@@ -244,7 +233,7 @@ const styles = StyleSheet.create({
     msg: { paddingVertical: 8, borderBottomWidth: 1, borderColor: '#eee' },
     gif: { width: 200, height: 200, resizeMode: 'cover', marginTop: 8 },
     meta: { fontSize: 12, color: '#666', marginBottom: 4 },
-    inputRowWrapper: { position: 'absolute', left: 0, right: 0, borderTopWidth: 1, borderColor: '#eee', backgroundColor: '#fff', zIndex: 50, elevation: 10 },
+    inputRowWrapper: { borderTopWidth: 1, borderColor: '#eee', backgroundColor: '#fff', zIndex: 50, elevation: 10, width: '100%' },
     inputRow: { flexDirection: 'row', alignItems: 'center', padding: 8, paddingHorizontal: 12 },
     input: { flex: 1, borderWidth: 1, borderColor: '#ddd', padding: 8, marginRight: 8, borderRadius: 4, height: 40 },
     previewContainer: { flexDirection: 'row', alignItems: 'center', marginLeft: 8 },

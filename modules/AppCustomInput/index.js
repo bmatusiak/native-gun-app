@@ -1,8 +1,9 @@
 
 
 import CustomTextInput from './src/CustomTextInput.android'
+import KeyboardDebugPanel from './src/KeyboardDebugPanel.android'
 
-// Export the native-backed component only. The component handles starting
-// the native listener internally on mount, and the app should continue to
-// use DeviceEventEmitter or other mechanisms to receive `keyboardInputContent`.
+// Default export is the native-backed input. The debug panel is exported
+// as a named export so the app can mount it conditionally (separate UI).
+export { KeyboardDebugPanel }
 export default CustomTextInput
