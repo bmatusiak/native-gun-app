@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Platform, View, Text, DeviceEventEmitter, StyleSheet, PixelRatio } from 'react-native'
 
-export default function KeyboardDebugPanel({ visible = true, style }) {
+export default function KeyboardDebugPanel({ visible = true, style, floating = true, position = 'bottom' }) {
     if (Platform.OS !== 'android' || !visible) return null
 
     const [last, setLast] = useState(null)
@@ -20,28 +20,50 @@ export default function KeyboardDebugPanel({ visible = true, style }) {
         return () => { try { sub && sub.remove && sub.remove() } catch (e) { } }
     }, [])
 
-    if (!last) return null
+    const px = last ? last.px : null
+    const dp = last ? last.dp : null
+    const map = last ? last.map : null
+
+    const containerStyle = floating
+        ? (position === 'top' ? styles.floatingTop : styles.floatingBottom)
+        : (position === 'top' ? styles.inlineTop : styles.inlineBottom)
 
     return (
-        <View pointerEvents="none" style={[styles.container, style]}>
+        <View pointerEvents="none" style={[containerStyle, style]}>
             <View style={styles.card}>
                 <Text style={styles.title}>Keyboard Debug</Text>
-                <Text>px: {String(last.px)}</Text>
-                <Text>dp: {String(last.dp)}</Text>
-                <Text>imeVisible: {String(last.map && last.map.imeVisible)}</Text>
-                <Text>isFloating: {String(last.map && last.map.isFloating)}</Text>
-                <Text>visibleFrameHeightPx: {String(last.map && last.map.visibleFrameHeightPx)}</Text>
+                <Text>px: {px != null ? String(px) : '—'}</Text>
+                <Text>dp: {dp != null ? String(dp) : '—'}</Text>
+                <Text>imeVisible: {map && map.imeVisible != null ? String(map.imeVisible) : '—'}</Text>
+                <Text>isFloating: {map && map.isFloating != null ? String(map.isFloating) : '—'}</Text>
+                <Text>visibleFrameHeightPx: {map && map.visibleFrameHeightPx != null ? String(map.visibleFrameHeightPx) : '—'}</Text>
             </View>
         </View>
     )
 }
 
 const styles = StyleSheet.create({
-    container: {
+    floatingBottom: {
         position: 'absolute',
         right: 8,
         bottom: 8,
         zIndex: 9999,
+    },
+    floatingTop: {
+        position: 'absolute',
+        right: 8,
+        top: 8,
+        zIndex: 9999,
+    },
+    inlineBottom: {
+        alignSelf: 'flex-end',
+        marginRight: 8,
+        marginBottom: 8,
+    },
+    inlineTop: {
+        alignSelf: 'flex-end',
+        marginRight: 8,
+        marginTop: 8,
     },
     card: {
         backgroundColor: 'rgba(0,0,0,0.7)',

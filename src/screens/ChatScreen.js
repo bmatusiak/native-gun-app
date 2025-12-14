@@ -123,6 +123,8 @@ export default function ChatScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
+            <KeyboardDebugPanel visible={true} floating={true} position="top" style={styles.debugBar} />
+
             <KeyboardAvoidingView
                 style={styles.content}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -177,7 +179,7 @@ export default function ChatScreen() {
                         );
                     })}
                 </ScrollView>
-                <KeyboardDebugPanel visible={true} style={styles.debugBar} />
+
 
                 <View style={styles.inputRowWrapper}>
                     <View style={styles.inputRow}>
