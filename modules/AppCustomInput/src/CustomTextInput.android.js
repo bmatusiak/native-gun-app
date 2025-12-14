@@ -19,7 +19,7 @@ export default function CustomTextInput(props) {
             try {
                 // Prefer IME inset height when available
                 const px = (map && (typeof map.imeHeightPx === 'number') && map.imeHeightPx) ||
-                           (map && (typeof map.keyboardVisibleHeight === 'number') && map.keyboardVisibleHeight) || 0;
+                    (map && (typeof map.keyboardVisibleHeight === 'number') && map.keyboardVisibleHeight) || 0;
 
                 const isFloating = !!(map && map.isFloating)
                 const imeVisible = !!(map && map.imeVisible)
@@ -42,17 +42,17 @@ export default function CustomTextInput(props) {
 
                 setKeyboardHeight(dp)
                 if (typeof onKeyboardHeightChanged === 'function') onKeyboardHeightChanged(dp, map)
-            } catch (e) {}
+            } catch (e) { }
         })
 
         return () => {
             try {
                 sub && sub.remove && sub.remove()
-            } catch (e) {}
+            } catch (e) { }
             try {
                 const mod = NativeModules.AppCustomInput
                 if (mod && typeof mod.stopListening === 'function') mod.stopListening()
-            } catch (e) {}
+            } catch (e) { }
         }
     }, [])
 
