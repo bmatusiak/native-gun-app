@@ -1,0 +1,19 @@
+{
+  "name": "app-custom-input",
+  "version": "0.1.0",
+  "description": "Custom Input for App",
+  "main": "index.js",
+  "scripts": { },
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "expo": "^54.0.27",
+    "react-native": "0.81.5"
+  },
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  },
+  "private": true
+}

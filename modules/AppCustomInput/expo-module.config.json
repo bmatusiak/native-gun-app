@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["AppCustomInputModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.appcustominput.AppCustomInputModule"]
+  }
+}
