@@ -74,7 +74,7 @@ export default function KeyboardAwareView({ children, style }) {
     return (
         <>
             <DebugPanel />
-            {/* <KeyboardAvoidingView style={[styles.container, style]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}> */}
+            {/* <KeyboardAvoidingView style={[styles.container, style]} behavior={'height'}> */}
             <View style={[styles.content, { paddingBottom: keyboardHeight }]}>
                 {children}
             </View>

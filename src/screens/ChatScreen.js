@@ -84,7 +84,7 @@ export default function ChatScreen() {
 
     return (
         <View style={styles.container}>
-            <KeyboardAwareView style={styles.content}>
+            <KeyboardAwareView>
                 <ScrollView
                     ref={scrollRef}
                     style={{ flex: 1 }}
@@ -185,7 +185,7 @@ export default function ChatScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, position: 'relative' },
-    content: { flex: 1 },
+    // content: { flex: 1 },
     scrollContent: { padding: 12, paddingBottom: 24 },
     msg: { paddingVertical: 8, borderBottomWidth: 1, borderColor: '#eee' },
     gif: { width: 200, height: 200, resizeMode: 'cover', marginTop: 8 },
