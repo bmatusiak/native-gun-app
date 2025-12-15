@@ -11,7 +11,7 @@ export default function ChatScreen() {
     const [text, setText] = useState('');
     const seen = useRef(new Set());
     const scrollRef = useRef(null);
-    
+
     const [preview, setPreview] = useState([]);
     const hiddenInputRef = useRef(null);
 
