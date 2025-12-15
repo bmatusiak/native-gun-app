@@ -191,6 +191,7 @@ export default function ChatScreen() {
                                 placeholder="Message"
                                 returnKeyType="send"
                                 onSubmitEditing={send}
+                                applyNativeMargin={false}
                             />
                         ) : (
                             <TextInput

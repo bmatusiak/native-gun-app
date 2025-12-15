@@ -5,7 +5,7 @@ const NativeInput = requireNativeComponent('RNCustomGifTextInput');
 
 export default function CustomTextInput(props) {
     if (Platform.OS !== 'android') return null;
-    const { value, onChangeText, style, onKeyboardHeightChanged, ...rest } = props;
+    const { value, onChangeText, style, onKeyboardHeightChanged, applyNativeMargin = true, ...rest } = props;
     const [keyboardHeight, setKeyboardHeight] = useState(0);
 
     useEffect(() => {
@@ -59,7 +59,7 @@ export default function CustomTextInput(props) {
     return (
         <NativeInput
             value={value}
-            style={[style, { marginBottom: keyboardHeight || 0 }]}
+            style={[style, applyNativeMargin ? { marginBottom: keyboardHeight || 0 } : null]}
             {...rest}
             onChange={(e) => {
                 const txt = e && e.nativeEvent && e.nativeEvent.text;
