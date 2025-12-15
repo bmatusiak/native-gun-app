@@ -30,6 +30,42 @@ export default function ChatScreen() {
         GunService.subscribeMessages(onMsg);
     }, []);
 
+    // Resolve attachment-hash messages that arrived as raw hash lists
+    const resolving = useRef(new Set());
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            for (let m of messages) {
+                const key = m._key || m.id || String(m.ts || '');
+                if (resolving.current.has(key)) continue;
+                // attachments may be a JSON string of hashes
+                let hashes = null;
+                if (typeof m.attachments === 'string') {
+                    try { hashes = JSON.parse(m.attachments); } catch (e) { hashes = null; }
+                } else if (Array.isArray(m.attachments) && m.attachments.length && typeof m.attachments[0] === 'string') {
+                    hashes = m.attachments;
+                }
+                if (Array.isArray(hashes) && hashes.length) {
+                    resolving.current.add(key);
+                    try {
+                        const resolved = await GunService.fetchAttachments(hashes);
+                        if (!mounted) return;
+                        if (resolved && resolved.length) {
+                            setMessages(prev => prev.map(pm => {
+                                const pmKey = pm._key || pm.id || String(pm.ts || '');
+                                if (pmKey !== key) return pm;
+                                return { ...pm, attachments: resolved };
+                            }));
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+                }
+            }
+        })();
+        return () => { mounted = false; };
+    }, [messages]);
+
     useEffect(() => {
         const sub = DeviceEventEmitter.addListener('keyboardInputContent', async (payload) => {
             if (!payload) return;
@@ -60,17 +96,19 @@ export default function ChatScreen() {
     const send = () => {
         const body = (text || '').trim();
         if (!body) return;
-        const msg = GunService.sendMessage({ text: body, author: 'mobile' });
-        setText('');
-        const id = msg.id || msg._key || String(msg.ts || '');
-        if (id && !seen.current.has(id)) {
-            seen.current.add(id);
-            setMessages((prev) => {
-                const next = [...prev, msg];
-                next.sort((a, b) => (a.ts || 0) - (b.ts || 0));
-                return next;
-            });
-        }
+        (async () => {
+            const msg = await GunService.sendMessage({ text: body, author: 'mobile' });
+            setText('');
+            const id = msg.id || msg._key || String(msg.ts || '');
+            if (id && !seen.current.has(id)) {
+                seen.current.add(id);
+                setMessages((prev) => {
+                    const next = [...prev, msg];
+                    next.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+                    return next;
+                });
+            }
+        })();
     };
 
     const sendPreview = () => {
@@ -78,9 +116,21 @@ export default function ChatScreen() {
         const attachments = (preview || []).map(p => (
             p.gifBase64 ? { gifBase64: p.gifBase64, mime: p.mime } : p.gifUri ? { gifUri: p.gifUri, mime: p.mime } : null
         )).filter(Boolean);
-        GunService.sendMessage({ text: bodyText, author: 'mobile', attachments });
-        setPreview([]);
-        setText('');
+        (async () => {
+            const msg = await GunService.sendMessage({ text: bodyText, author: 'mobile', attachments });
+            // clear preview and input after send
+            setPreview([]);
+            setText('');
+            const id = msg.id || msg._key || String(msg.ts || '');
+            if (id && !seen.current.has(id)) {
+                seen.current.add(id);
+                setMessages((prev) => {
+                    const next = [...prev, msg];
+                    next.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+                    return next;
+                });
+            }
+        })();
     };
 
     const removePreviewAt = (index) => {
@@ -98,11 +148,34 @@ export default function ChatScreen() {
                 >
                     {messages.map((m) => {
                         const key = m.id || m._key || String(m.ts || Math.random());
-                        const attachments = (m.attachments && m.attachments.length)
-                            ? m.attachments
-                            : (m.gifBase64 || m.gifUri)
-                                ? [{ gifBase64: m.gifBase64, gifUri: m.gifUri, mime: m.mime }]
-                                : [];
+                        // normalize attachments from several storage shapes
+                        function parseAttachments(msg) {
+                            try {
+                                if (!msg) return []
+                                if (Array.isArray(msg.attachments)) return msg.attachments
+                                if (msg.attachments && typeof msg.attachments === 'object') {
+                                    // object map: values may be stored as nodes
+                                    return Object.keys(msg.attachments).map(k => {
+                                        const v = msg.attachments[k]
+                                        // unwrap possible nested nodes
+                                        if (v && typeof v === 'object') {
+                                            if (v.gifBase64 || v.gifUri || v.mime) return v
+                                            // some GUN nodes may wrap value under a '_' or '#', try common unwraps
+                                            if (v._ && (v._.gifBase64 || v._.gifUri)) return v._
+                                            if (v['#'] && typeof v['#'] === 'object') return v['#']
+                                            return v
+                                        }
+                                        return null
+                                    }).filter(Boolean)
+                                }
+                                if (msg.gifBase64 || msg.gifUri) return [{ gifBase64: msg.gifBase64, gifUri: msg.gifUri, mime: msg.mime }]
+                            } catch (e) {
+                                console.debug('parseAttachments error', e, msg && msg.attachments)
+                            }
+                            return []
+                        }
+                        const attachments = parseAttachments(m)
+                        if (__DEV__) console.debug('ChatScreen: parsed attachments', { key, attachments, raw: m.attachments })
                         return (
                             <View key={key} style={styles.msg}>
                                 <Text style={styles.meta}>{m.author} • {m.ts ? new Date(m.ts).toLocaleTimeString() : ''}</Text>
