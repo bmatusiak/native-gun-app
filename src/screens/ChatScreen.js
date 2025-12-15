@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Platform, View, Text, ScrollView, TextInput, Button, StyleSheet, Image, DeviceEventEmitter } from 'react-native';
+import { Platform, View, Text, ScrollView, TextInput, Button, StyleSheet, Image, DeviceEventEmitter, TouchableOpacity } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import GunService from '../GunService';
@@ -11,7 +11,7 @@ export default function ChatScreen() {
     const [text, setText] = useState('');
     const seen = useRef(new Set());
     const scrollRef = useRef(null);
-    const [preview, setPreview] = useState(null);
+    const [preview, setPreview] = useState([]);
     const hiddenInputRef = useRef(null);
 
     useEffect(() => {
@@ -33,18 +33,21 @@ export default function ChatScreen() {
     useEffect(() => {
         const sub = DeviceEventEmitter.addListener('keyboardInputContent', async (payload) => {
             if (!payload) return;
+            // limit attachments to max 5
+            const MAX_ATTACH = 5
+            if ((preview && preview.length >= MAX_ATTACH)) return
             const mime = payload.mime;
             if (payload.gifBase64) {
-                setPreview({ gifBase64: payload.gifBase64, mime });
+                setPreview(prev => [...prev, { gifBase64: payload.gifBase64, mime }]);
                 return;
             }
             if (!payload.uri) return;
             const uri = payload.uri;
             try {
                 const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-                setPreview({ gifBase64: b64, mime });
+                setPreview(prev => [...prev, { gifBase64: b64, mime }]);
             } catch (e) {
-                setPreview({ gifUri: uri, mime });
+                setPreview(prev => [...prev, { gifUri: uri, mime }]);
             }
         });
         return () => sub.remove();
@@ -72,15 +75,17 @@ export default function ChatScreen() {
 
     const sendPreview = () => {
         const bodyText = (text || '').trim();
-        const attachments = preview.gifBase64
-            ? [{ gifBase64: preview.gifBase64, mime: preview.mime }]
-            : preview.gifUri
-                ? [{ gifUri: preview.gifUri, mime: preview.mime }]
-                : [];
+        const attachments = (preview || []).map(p => (
+            p.gifBase64 ? { gifBase64: p.gifBase64, mime: p.mime } : p.gifUri ? { gifUri: p.gifUri, mime: p.mime } : null
+        )).filter(Boolean);
         GunService.sendMessage({ text: bodyText, author: 'mobile', attachments });
-        setPreview(null);
+        setPreview([]);
         setText('');
     };
+
+    const removePreviewAt = (index) => {
+        setPreview(prev => prev.filter((_, i) => i !== index));
+    }
 
     return (
         <View style={styles.container}>
@@ -136,6 +141,25 @@ export default function ChatScreen() {
                 </ScrollView>
 
                 <View style={styles.inputRowWrapper}>
+                    {preview && preview.length > 0 ? (
+                        <View style={styles.previewBarContainer}>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.previewBar}>
+                                {preview.map((p, i) => (
+                                    <View key={i} style={styles.previewItem}>
+                                        {p.gifBase64 ? (
+                                            <Image source={{ uri: `data:${p.mime || 'image/gif'};base64,${p.gifBase64}` }} style={styles.previewImage} />
+                                        ) : p.gifUri ? (
+                                            <Image source={{ uri: p.gifUri }} style={styles.previewImage} />
+                                        ) : null}
+                                        <TouchableOpacity style={styles.removeButton} onPress={() => removePreviewAt(i)}>
+                                            <Text style={styles.removeButtonText}>✕</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    ) : null}
+
                     <View style={styles.inputRow}>
                         {Platform.OS === 'android' ? (
                             <CustomTextInput
@@ -161,21 +185,7 @@ export default function ChatScreen() {
                         {/* Hidden JS TextInput kept for future use, not focused by default */}
                         <TextInput ref={hiddenInputRef} style={{ height: 0, width: 0, opacity: 0 }} />
 
-                        {preview ? (
-                            <View style={styles.previewContainer}>
-                                {preview.gifBase64 ? (
-                                    <Image source={{ uri: `data:${preview.mime || 'image/gif'};base64,${preview.gifBase64}` }} style={styles.preview} />
-                                ) : preview.gifUri ? (
-                                    <Image source={{ uri: preview.gifUri }} style={styles.preview} />
-                                ) : null}
-                                <View style={styles.previewButtons}>
-                                    <Button title="Send" onPress={sendPreview} />
-                                    <Button title="Cancel" onPress={() => setPreview(null)} />
-                                </View>
-                            </View>
-                        ) : (
-                            <Button title="Send" onPress={send} />
-                        )}
+                        <Button title="Send" onPress={preview && preview.length > 0 ? sendPreview : send} />
                     </View>
                 </View>
             </KeyboardAwareView>
@@ -193,8 +203,12 @@ const styles = StyleSheet.create({
     inputRowWrapper: { borderTopWidth: 1, borderColor: '#eee', backgroundColor: '#fff', zIndex: 50, elevation: 10, width: '100%' },
     inputRow: { flexDirection: 'row', alignItems: 'center', padding: 8, paddingHorizontal: 12 },
     input: { flex: 1, borderWidth: 1, borderColor: '#ddd', padding: 8, marginRight: 8, borderRadius: 4, height: 40 },
-    previewContainer: { flexDirection: 'row', alignItems: 'center', marginLeft: 8 },
-    preview: { width: 80, height: 80, resizeMode: 'cover', borderRadius: 6, marginRight: 8 },
+    previewBarContainer: { borderTopWidth: 1, borderColor: '#eee', paddingVertical: 8, backgroundColor: '#fff' },
+    previewBar: { paddingHorizontal: 12, alignItems: 'center' },
+    previewItem: { marginRight: 8, position: 'relative' },
+    previewImage: { width: 80, height: 80, resizeMode: 'cover', borderRadius: 6 },
+    removeButton: { position: 'absolute', top: -6, right: -6, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+    removeButtonText: { color: '#fff', fontSize: 12, lineHeight: 14 },
     previewButtons: { flexDirection: 'column', justifyContent: 'space-between', height: 80 },
     attachmentsHorizontal: { marginTop: 8 },
     attachmentImage: { width: 140, height: 140, resizeMode: 'cover', marginRight: 8, borderRadius: 6 },
