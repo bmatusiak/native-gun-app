@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Platform, View, Text, ScrollView, TextInput, Button, StyleSheet, Image, DeviceEventEmitter, TouchableOpacity } from 'react-native';
+import { Platform, View, Text, ScrollView, TextInput, Button, StyleSheet, Image, DeviceEventEmitter, TouchableOpacity, PixelRatio } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import GunService from '../GunService';
@@ -11,6 +11,10 @@ export default function ChatScreen() {
     const [text, setText] = useState('');
     const seen = useRef(new Set());
     const scrollRef = useRef(null);
+    const scrollOffsetRef = useRef(0);
+    const contentHeightRef = useRef(0);
+    const layoutHeightRef = useRef(0);
+    const keyboardDpRef = useRef(0);
     const [preview, setPreview] = useState([]);
     const hiddenInputRef = useRef(null);
 
@@ -93,6 +97,42 @@ export default function ChatScreen() {
         if (scrollRef.current) scrollRef.current.scrollToEnd({ animated: true });
     }, [messages]);
 
+    // ensure we scroll when the native keyboard opens/resizes
+    useEffect(() => {
+        const sub = DeviceEventEmitter.addListener('keyboardChanged', (payload) => {
+            try {
+                if (!payload) return
+                const isVisible = !!payload.isVisible
+                if (scrollRef.current) {
+                    // ignore floating keyboards (they overlay)
+                    const isFloating = !!payload.isFloating
+                    if (isFloating) return
+
+                    const px = (typeof payload.keyboardDem === 'number') ? Number(payload.keyboardDem) : 0
+                    const dp = Math.round(px / (PixelRatio.get() || 1))
+
+                    // compute delta from previous keyboard size and scroll by that difference
+                    const prev = keyboardDpRef.current || 0
+                    const delta = dp - prev
+
+                    // update stored keyboard height for next resize
+                    keyboardDpRef.current = dp
+
+                    if (delta === 0) return
+
+                    setTimeout(() => {
+                        try {
+                            const cur = scrollOffsetRef.current || 0
+                            // apply delta (can be negative to scroll up)
+                            scrollRef.current && scrollRef.current.scrollTo({ y: cur + delta, animated: true })
+                        } catch (e) { }
+                    }, 80)
+                }
+            } catch (e) { }
+        })
+        return () => { try { sub && sub.remove && sub.remove() } catch (e) { } }
+    }, [])
+
     const send = () => {
         const body = (text || '').trim();
         if (!body) return;
@@ -144,6 +184,10 @@ export default function ChatScreen() {
                     ref={scrollRef}
                     style={{ flex: 1 }}
                     contentContainerStyle={styles.scrollContent}
+                    onScroll={(e) => { try { scrollOffsetRef.current = (e && e.nativeEvent && e.nativeEvent.contentOffset && typeof e.nativeEvent.contentOffset.y === 'number') ? e.nativeEvent.contentOffset.y : scrollOffsetRef.current } catch (err) {} }}
+                    scrollEventThrottle={16}
+                    onContentSizeChange={(w, h) => { contentHeightRef.current = h }}
+                    onLayout={(e) => { try { layoutHeightRef.current = e && e.nativeEvent && e.nativeEvent.layout && e.nativeEvent.layout.height ? e.nativeEvent.layout.height : layoutHeightRef.current } catch (err) {} }}
                     keyboardShouldPersistTaps="handled"
                 >
                     {messages.map((m) => {
@@ -269,7 +313,7 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, position: 'relative' },
     // content: { flex: 1 },
-    scrollContent: { padding: 12, paddingBottom: 24 },
+    scrollContent: { padding: 12, paddingBottom: 24, flexGrow: 1, justifyContent: 'flex-end' },
     msg: { paddingVertical: 8, borderBottomWidth: 1, borderColor: '#eee' },
     gif: { width: 200, height: 200, resizeMode: 'cover', marginTop: 8 },
     meta: { fontSize: 12, color: '#666', marginBottom: 4 },

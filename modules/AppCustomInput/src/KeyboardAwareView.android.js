@@ -30,9 +30,19 @@ export default function KeyboardAwareView({ children, style }) {
                     try { console.debug('KeyboardAwareView: native keyboardChanged', { payload, px, dp, isVisible, isFloating, event: payload && payload.event ? payload.event : null }) } catch (e) { }
                 }
 
-                // per spec: if isVisible is false or isFloating is false, treat height as 0
-                setLast({ map: payload, px, dp, ts: Date.now() })
-                setKeyboardHeight(isVisible ? dp : 0)
+                // determine whether layout should be pushed.
+                // floating keyboards should NOT push layout (they overlay), only non-floating visible keyboards do.
+                const shouldPush = isVisible && !isFloating
+                setLast({ map: payload, px, dp, isFloating, isVisible, ts: Date.now() })
+
+                // cap keyboard height to a sensible fraction of screen height so large values don't collapse the layout
+                const winDp = (dims && dims.height) ? Math.round(dims.height) : null
+                let safeDp = dp
+                if (winDp != null) {
+                    const maxAllowed = Math.round(winDp * 0.9)
+                    if (safeDp > maxAllowed) safeDp = maxAllowed
+                }
+                setKeyboardHeight(shouldPush ? safeDp : 0)
             } catch (e) {
                 // ignore
             }
