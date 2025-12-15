@@ -22,7 +22,7 @@ export default function KeyboardAwareView({ children, style }) {
             try {
                 if (!payload) return
                 const isVisible = !!payload.isVisible
-                const isFloating = !!payload.isFloating
+                const isFloating = !!payload.isFloating// this is sepcial,, its a floating view, should have X/Y coords and W/H
                 const px = (typeof payload.keyboardDem === 'number') ? Number(payload.keyboardDem) : 0
                 const dp = Math.round(px / (PixelRatio.get() || 1))
 
