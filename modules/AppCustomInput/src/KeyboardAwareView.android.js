@@ -9,7 +9,6 @@ export default function KeyboardAwareView({ children, style }) {
     }
     const [keyboardHeight, setKeyboardHeight] = useState(0)
     const [last, setLast] = useState(null)
-    const lastImeFalseTs = useRef(0)
 
     useEffect(() => {
         // ensure native module starts emitting events
@@ -18,64 +17,29 @@ export default function KeyboardAwareView({ children, style }) {
             if (mod && typeof mod.startListening === 'function') mod.startListening()
         } catch (e) { }
 
-        // listen for native keyboard size/open events
-        const showSubNative = DeviceEventEmitter.addListener('keyboardWillShow', (payload) => {
+        // listen for single unified native event 'keyboardChanged'
+        const sub = DeviceEventEmitter.addListener('keyboardChanged', (payload) => {
             try {
                 if (!payload) return
-                // If the payload explicitly says the IME is not visible, treat height as 0.
-                // Otherwise prefer the visible-frame-derived `keyboardVisibleHeight` (catches IME internal panels),
-                // falling back to `imeHeightPx` when present.
-                let px = 0
-                if (payload && payload.imeVisible === false) {
-                    // record timestamp of explicit IME hide
-                    lastImeFalseTs.current = Date.now()
-                    px = 0
-                } else if (payload && typeof payload.keyboardVisibleHeight === 'number') {
-                    // if we recently saw an explicit IME hide, ignore transient layout events
-                    const now = Date.now()
-                    if (lastImeFalseTs.current && now - lastImeFalseTs.current < 500) {
-                        // ignore this transient event
-                        return
-                    }
-                    px = Number(payload.keyboardVisibleHeight)
-                } else if (payload && typeof payload.imeHeightPx === 'number') {
-                    px = Number(payload.imeHeightPx)
-                } else {
-                    px = 0
-                }
-
+                const isVisible = !!payload.isVisible
+                const isFloating = !!payload.isFloating
+                const px = (typeof payload.keyboardDem === 'number') ? Number(payload.keyboardDem) : 0
                 const dp = Math.round(px / (PixelRatio.get() || 1))
-                setLast({ map: payload, px, dp, ts: Date.now() })
 
                 if (enableDebug) {
-                    try {
-                        console.debug('KeyboardAwareView: native keyboardHeightChanged', { px, dp, imeHeightPx: payload.imeHeightPx, keyboardVisibleHeight: payload.keyboardVisibleHeight, isFloating: !!payload.isFloating, imeVisible: payload.imeVisible })
-                    } catch (e) { }
+                    try { console.debug('KeyboardAwareView: native keyboardChanged', { payload, px, dp, isVisible, isFloating }) } catch (e) { }
                 }
 
-                // If IME is floating, ignore and treat as 0; otherwise use computed dp.
-                const isFloating = !!(payload && payload.isFloating)
-                setKeyboardHeight(isFloating ? 0 : dp)
+                // per spec: if isVisible is false or isFloating is false, treat height as 0
+                setLast({ map: payload, px, dp, ts: Date.now() })
+                setKeyboardHeight((isVisible && isFloating) ? dp : 0)
             } catch (e) {
                 // ignore
             }
         })
 
-        const hideSubNative = DeviceEventEmitter.addListener('keyboardWillHide', (payload) => {
-            try {
-                // explicit hide -> zero height
-                setKeyboardHeight(0)
-                setLast({ map: payload || null, px: 0, dp: 0, ts: Date.now() })
-                lastImeFalseTs.current = Date.now()
-                if (enableDebug) {
-                    try { console.debug('KeyboardAwareView: native keyboard hide', { payload }) } catch (e) { }
-                }
-            } catch (e) { }
-        })
-
         return () => {
-            try { showSubNative && showSubNative.remove && showSubNative.remove() } catch (e) { }
-            try { hideSubNative && hideSubNative.remove && hideSubNative.remove() } catch (e) { }
+            try { sub && sub.remove && sub.remove() } catch (e) { }
             try {
                 const mod = NativeModules.AppCustomInput
                 if (mod && typeof mod.stopListening === 'function') mod.stopListening()
@@ -97,11 +61,11 @@ export default function KeyboardAwareView({ children, style }) {
                 <Text style={styles.debugTitle}>Keyboard Debug</Text>
                 <Text style={styles.debugText}>px: {px != null ? String(px) : '—'}</Text>
                 <Text style={styles.debugText}>dp: {dp != null ? String(dp) : '—'}</Text>
-                <Text style={styles.debugText}>imeVisible: {map && map.imeVisible != null ? String(map.imeVisible) : '—'}</Text>
+                <Text style={styles.debugText}>isVisible: {map && map.isVisible != null ? String(map.isVisible) : '—'}</Text>
                 <Text style={styles.debugText}>isFloating: {map && map.isFloating != null ? String(map.isFloating) : '—'}</Text>
                 <Text style={styles.debugText}>Screen W: {screenPxW} px</Text>
                 <Text style={styles.debugText}>Screen H: {screenPxH} px</Text>
-                <Text style={styles.debugText}>visibleFrameHeightPx: {map && map.visibleFrameHeightPx != null ? String(map.visibleFrameHeightPx) : '—'}</Text>
+                <Text style={styles.debugText}>keyboardDem px: {map && map.keyboardDem != null ? String(map.keyboardDem) : '—'}</Text>
             </DebugPanelView>
         )
     }

@@ -28,6 +28,9 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
   private var observedRoot: View? = null
   private var hasInsetsListener = false
   private var lastImeVisible: Boolean = false
+  private var lastEmittedKbHeight: Int = -1
+  private var lastEmitTs: Long = 0
+  private var lastEmittedKey: String? = null
 
   override fun getName(): String = "AppCustomInput"
 
@@ -68,13 +71,23 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
             map.putInt("visibleFrameHeightPx", visibleHeight)
             map.putBoolean("isFloating", isFloating)
             try {
-              if (reportedKbHeight > 0) {
-                reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                  .emit("keyboardWillShow", map)
+              // Per spec: emit concise payload with keys: isVisible, isFloating, keyboardDem
+              val now = System.currentTimeMillis()
+              val isFloatingAdj = imeVisible && (imeHeight <= (totalHeight * 0.15).toInt() || visibleHeight == totalHeight)
+              val keyboardDem = if (imeVisible && isFloatingAdj) reportedKbHeight else 0
+              val key = "${imeVisible}:${isFloatingAdj}:${keyboardDem}"
+              if (key == lastEmittedKey && now - lastEmitTs < 700) {
+                // skip duplicate
               } else {
-                // emit hide event when IME not visible
+                val out: WritableMap = Arguments.createMap()
+                out.putBoolean("isVisible", imeVisible)
+                out.putBoolean("isFloating", isFloatingAdj)
+                out.putInt("keyboardDem", keyboardDem)
                 reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                  .emit("keyboardWillHide", map)
+                    .emit("keyboardChanged", out)
+                lastEmittedKbHeight = keyboardDem
+                lastEmitTs = now
+                lastEmittedKey = key
               }
             } catch (e: Exception) {
               AppCustomInputDebug.w("AppCustomInput", "failed to emit keyboard event from insets: ${e.message}")
@@ -102,17 +115,28 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
             if (!lastImeVisible) {
               kbHeight = 0
             }
+            // derive isFloating similarly to insets path (small IME or full-screen visible frame)
+            val isFloating = lastImeVisible && (kbHeight <= (totalHeight * 0.15).toInt() || visibleHeight == totalHeight)
+
+            // Per spec: only emit concise payload with keys: isVisible, isFloating, keyboardDem
+            val keyboardDem = if (lastImeVisible && isFloating) kbHeight else 0
+
             val map: WritableMap = Arguments.createMap()
-            map.putInt("keyboardVisibleHeight", kbHeight)
-            map.putInt("visibleFrameHeightPx", visibleHeight)
-            map.putBoolean("imeVisible", lastImeVisible)
+            map.putBoolean("isVisible", lastImeVisible)
+            map.putBoolean("isFloating", isFloating)
+            map.putInt("keyboardDem", keyboardDem)
+
             try {
-              if (kbHeight > 0) {
-                reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                  .emit("keyboardWillShow", map)
+              val now = System.currentTimeMillis()
+              val key = "${lastImeVisible}:${isFloating}:${keyboardDem}"
+              if (key == lastEmittedKey && now - lastEmitTs < 700) {
+                // skip duplicate global-layout emit
               } else {
                 reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                  .emit("keyboardWillHide", map)
+                    .emit("keyboardChanged", map)
+                lastEmittedKbHeight = keyboardDem
+                lastEmitTs = now
+                lastEmittedKey = key
               }
             } catch (e: Exception) {
               AppCustomInputDebug.w("AppCustomInput", "failed to emit keyboard event: ${e.message}")
