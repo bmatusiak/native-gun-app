@@ -31,6 +31,7 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
   private var lastEmittedKbHeight: Int = -1
   private var lastEmitTs: Long = 0
   private var lastEmittedKey: String? = null
+  private var lastImeHeight: Int = 0
   private var lastInsetsEmitTs: Long = 0
 
   override fun getName(): String = "AppCustomInput"
@@ -55,6 +56,8 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
             val imeVisible = compat.isVisible(WindowInsetsCompat.Type.ime())
             val imeInsets = compat.getInsets(WindowInsetsCompat.Type.ime())
             val imeHeight = imeInsets.bottom
+            // persist last ime height for global-layout fallback
+            if (imeHeight > 0) lastImeHeight = imeHeight
             val prevImeVisible = lastImeVisible
             val rect = Rect()
             v.getWindowVisibleDisplayFrame(rect)
@@ -75,7 +78,15 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
               // Per spec: emit concise payload with keys: isVisible, isFloating, keyboardDem
               val now = System.currentTimeMillis()
               val isFloatingAdj = imeVisible && (imeHeight <= (totalHeight * 0.15).toInt() || visibleHeight == totalHeight)
-              val keyboardDem = if (imeVisible && !isFloatingAdj) reportedKbHeight else 0
+              // prefer the IME inset height when available (more accurate), otherwise fall back to visible-frame delta
+              val candidateHeight = if (imeVisible && imeHeight > 0) imeHeight else reportedKbHeight
+              // clamp to reasonable bounds
+              val clamped = when {
+                candidateHeight < 0 -> 0
+                candidateHeight > totalHeight -> totalHeight
+                else -> candidateHeight
+              }
+              val keyboardDem = if (imeVisible && !isFloatingAdj) clamped else 0
               val key = "${imeVisible}:${isFloatingAdj}:${keyboardDem}"
               if (key == lastEmittedKey && now - lastEmitTs < 700) {
                 // skip duplicate
@@ -131,8 +142,15 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
             // derive isFloating similarly to insets path (small IME or full-screen visible frame)
             val isFloating = lastImeVisible && (kbHeight <= (totalHeight * 0.15).toInt() || visibleHeight == totalHeight)
 
+            // Prefer persisted IME inset height when available for global-layout path
+            val candidate = if (lastImeVisible && lastImeHeight > 0) lastImeHeight else kbHeight
+            val clampedGlobal = when {
+              candidate < 0 -> 0
+              candidate > totalHeight -> totalHeight
+              else -> candidate
+            }
             // Per spec: only emit concise payload with keys: isVisible, isFloating, keyboardDem
-            val keyboardDem = if (lastImeVisible && !isFloating) kbHeight else 0
+            val keyboardDem = if (lastImeVisible && !isFloating) clampedGlobal else 0
 
             val map: WritableMap = Arguments.createMap()
             map.putBoolean("isVisible", lastImeVisible)
