@@ -27,12 +27,12 @@ export default function KeyboardAwareView({ children, style }) {
                 const dp = Math.round(px / (PixelRatio.get() || 1))
 
                 if (enableDebug) {
-                    try { console.debug('KeyboardAwareView: native keyboardChanged', { payload, px, dp, isVisible, isFloating }) } catch (e) { }
+                    try { console.debug('KeyboardAwareView: native keyboardChanged', { payload, px, dp, isVisible, isFloating, event: payload && payload.event ? payload.event : null }) } catch (e) { }
                 }
 
                 // per spec: if isVisible is false or isFloating is false, treat height as 0
                 setLast({ map: payload, px, dp, ts: Date.now() })
-                setKeyboardHeight((isVisible && isFloating) ? dp : 0)
+                setKeyboardHeight(isVisible ? dp : 0)
             } catch (e) {
                 // ignore
             }
@@ -66,6 +66,7 @@ export default function KeyboardAwareView({ children, style }) {
                 <Text style={styles.debugText}>Screen W: {screenPxW} px</Text>
                 <Text style={styles.debugText}>Screen H: {screenPxH} px</Text>
                 <Text style={styles.debugText}>keyboardDem px: {map && map.keyboardDem != null ? String(map.keyboardDem) : '—'}</Text>
+                <Text style={styles.debugText}>keyboardHeight: {keyboardHeight}</Text>
             </DebugPanelView>
         )
     }
@@ -73,11 +74,11 @@ export default function KeyboardAwareView({ children, style }) {
     return (
         <>
             <DebugPanel />
-            <KeyboardAvoidingView style={[styles.container, style]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-                <View style={[styles.content, { paddingBottom: keyboardHeight }]}>
-                    {children}
-                </View>
-            </KeyboardAvoidingView>
+            {/* <KeyboardAvoidingView style={[styles.container, style]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}> */}
+            <View style={[styles.content, { paddingBottom: keyboardHeight }]}>
+                {children}
+            </View>
+            {/* </KeyboardAvoidingView> */}
         </>
     )
 }

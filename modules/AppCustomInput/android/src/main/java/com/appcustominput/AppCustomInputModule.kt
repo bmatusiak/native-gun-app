@@ -31,6 +31,7 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
   private var lastEmittedKbHeight: Int = -1
   private var lastEmitTs: Long = 0
   private var lastEmittedKey: String? = null
+  private var lastInsetsEmitTs: Long = 0
 
   override fun getName(): String = "AppCustomInput"
 
@@ -54,7 +55,7 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
             val imeVisible = compat.isVisible(WindowInsetsCompat.Type.ime())
             val imeInsets = compat.getInsets(WindowInsetsCompat.Type.ime())
             val imeHeight = imeInsets.bottom
-            lastImeVisible = imeVisible
+            val prevImeVisible = lastImeVisible
             val rect = Rect()
             v.getWindowVisibleDisplayFrame(rect)
             val visibleHeight = rect.height()
@@ -74,20 +75,32 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
               // Per spec: emit concise payload with keys: isVisible, isFloating, keyboardDem
               val now = System.currentTimeMillis()
               val isFloatingAdj = imeVisible && (imeHeight <= (totalHeight * 0.15).toInt() || visibleHeight == totalHeight)
-              val keyboardDem = if (imeVisible && isFloatingAdj) reportedKbHeight else 0
+              val keyboardDem = if (imeVisible && !isFloatingAdj) reportedKbHeight else 0
               val key = "${imeVisible}:${isFloatingAdj}:${keyboardDem}"
               if (key == lastEmittedKey && now - lastEmitTs < 700) {
                 // skip duplicate
               } else {
+                // determine event type using previous IME visibility
+                val eventType = when {
+                  imeVisible && !prevImeVisible -> "show"
+                  !imeVisible && prevImeVisible -> "hide"
+                  imeVisible && lastEmittedKbHeight != keyboardDem -> "resize"
+                  else -> if (imeVisible) "resize" else "hide"
+                }
                 val out: WritableMap = Arguments.createMap()
+                out.putString("event", eventType)
                 out.putBoolean("isVisible", imeVisible)
                 out.putBoolean("isFloating", isFloatingAdj)
                 out.putInt("keyboardDem", keyboardDem)
                 reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                     .emit("keyboardChanged", out)
+                // record that an insets-based emit occurred
+                lastInsetsEmitTs = now
                 lastEmittedKbHeight = keyboardDem
                 lastEmitTs = now
                 lastEmittedKey = key
+                // update lastImeVisible to current state so next event calc works
+                lastImeVisible = imeVisible
               }
             } catch (e: Exception) {
               AppCustomInputDebug.w("AppCustomInput", "failed to emit keyboard event from insets: ${e.message}")
@@ -119,7 +132,7 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
             val isFloating = lastImeVisible && (kbHeight <= (totalHeight * 0.15).toInt() || visibleHeight == totalHeight)
 
             // Per spec: only emit concise payload with keys: isVisible, isFloating, keyboardDem
-            val keyboardDem = if (lastImeVisible && isFloating) kbHeight else 0
+            val keyboardDem = if (lastImeVisible && !isFloating) kbHeight else 0
 
             val map: WritableMap = Arguments.createMap()
             map.putBoolean("isVisible", lastImeVisible)
@@ -128,15 +141,28 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
 
             try {
               val now = System.currentTimeMillis()
+              // if insets emitted very recently, prefer insets and skip global-layout emit
+              if (now - lastInsetsEmitTs < 300) {
+                return@OnGlobalLayoutListener
+              }
               val key = "${lastImeVisible}:${isFloating}:${keyboardDem}"
               if (key == lastEmittedKey && now - lastEmitTs < 700) {
                 // skip duplicate global-layout emit
               } else {
+                // determine event type for global-layout path
+                val eventType = when {
+                  lastImeVisible && !lastEmittedKey?.startsWith("true")!! -> "show"
+                  !lastImeVisible && lastEmittedKey?.startsWith("true")!! -> "hide"
+                  lastEmittedKbHeight != keyboardDem -> "resize"
+                  else -> if (lastImeVisible) "resize" else "hide"
+                }
+                map.putString("event", eventType)
                 reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                     .emit("keyboardChanged", map)
                 lastEmittedKbHeight = keyboardDem
                 lastEmitTs = now
                 lastEmittedKey = key
+                // update lastImeVisible already represents current state
               }
             } catch (e: Exception) {
               AppCustomInputDebug.w("AppCustomInput", "failed to emit keyboard event: ${e.message}")
