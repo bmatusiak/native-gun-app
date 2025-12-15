@@ -170,12 +170,12 @@ export default function ChatScreen() {
                                 }
                                 if (msg.gifBase64 || msg.gifUri) return [{ gifBase64: msg.gifBase64, gifUri: msg.gifUri, mime: msg.mime }]
                             } catch (e) {
-                                console.debug('parseAttachments error', e, msg && msg.attachments)
+                                // parse error ignored
                             }
                             return []
                         }
                         const attachments = parseAttachments(m)
-                        if (__DEV__) console.debug('ChatScreen: parsed attachments', { key, attachments, raw: m.attachments })
+                        // debug info removed
                         return (
                             <View key={key} style={styles.msg}>
                                 <Text style={styles.meta}>{m.author} • {m.ts ? new Date(m.ts).toLocaleTimeString() : ''}</Text>
