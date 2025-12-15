@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Platform, View, Text, ScrollView, TextInput, Button, StyleSheet, Keyboard, DeviceEventEmitter, Image, KeyboardAvoidingView } from 'react-native';
+import { Platform, View, Text, ScrollView, TextInput, Button, StyleSheet, Image, DeviceEventEmitter } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import GunService from '../GunService';
-import CustomTextInput, { KeyboardDebugPanel } from 'app-custom-input';
+import CustomTextInput, { KeyboardAwareView } from 'app-custom-input';
 import * as FileSystem from 'expo-file-system';
 
 export default function ChatScreen() {
@@ -11,7 +11,6 @@ export default function ChatScreen() {
     const [text, setText] = useState('');
     const seen = useRef(new Set());
     const scrollRef = useRef(null);
-    const [keyboardHeight, setKeyboardHeight] = useState(0);
     const [preview, setPreview] = useState(null);
     const hiddenInputRef = useRef(null);
 
@@ -34,11 +33,6 @@ export default function ChatScreen() {
     useEffect(() => {
         const sub = DeviceEventEmitter.addListener('keyboardInputContent', async (payload) => {
             if (!payload) return;
-            // console.log('keyboardInputContent payload', payload);
-            if (payload.keyboardVisibleHeight != null) {
-                const h = Number(payload.keyboardVisibleHeight) || 0;
-                setKeyboardHeight(h);
-            }
             const mime = payload.mime;
             if (payload.gifBase64) {
                 setPreview({ gifBase64: payload.gifBase64, mime });
@@ -54,39 +48,6 @@ export default function ChatScreen() {
             }
         });
         return () => sub.remove();
-    }, []);
-
-    // listen to native global-layout / insets emitted keyboard height changes (covers IME panels)
-    useEffect(() => {
-        const hsub = DeviceEventEmitter.addListener('keyboardHeightChanged', (payload) => {
-            if (!payload) return;
-            // Prefer WindowInsets-provided IME height when available
-            if (payload.imeHeightPx != null) {
-                const imeH = Number(payload.imeHeightPx) || 0;
-                const isFloating = !!payload.isFloating;
-                // if IME is floating, don't push the input
-                setKeyboardHeight(isFloating ? 0 : imeH);
-                return;
-            }
-            // fallback to previous keyboardVisibleHeight field
-            if (payload.keyboardVisibleHeight != null) {
-                const h = Number(payload.keyboardVisibleHeight) || 0;
-                setKeyboardHeight(h);
-            }
-        });
-        return () => hsub.remove();
-    }, []);
-
-    // also listen to RN keyboard events for regular keyboard open/close
-    useEffect(() => {
-        const show = (e) => setKeyboardHeight(e.endCoordinates ? e.endCoordinates.height : 0);
-        const hide = () => setKeyboardHeight(0);
-        const showSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', show);
-        const hideSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', hide);
-        return () => {
-            showSub.remove();
-            hideSub.remove();
-        };
     }, []);
 
     useEffect(() => {
@@ -122,14 +83,8 @@ export default function ChatScreen() {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
-            <KeyboardDebugPanel visible={true} floating={true} position="top" style={styles.debugBar} />
-
-            <KeyboardAvoidingView
-                style={styles.content}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={0}
-            >
+        <View style={styles.container}>
+            <KeyboardAwareView style={styles.content}>
                 <ScrollView
                     ref={scrollRef}
                     style={{ flex: 1 }}
@@ -180,7 +135,6 @@ export default function ChatScreen() {
                     })}
                 </ScrollView>
 
-
                 <View style={styles.inputRowWrapper}>
                     <View style={styles.inputRow}>
                         {Platform.OS === 'android' ? (
@@ -224,8 +178,8 @@ export default function ChatScreen() {
                         )}
                     </View>
                 </View>
-            </KeyboardAvoidingView>
-        </SafeAreaView>
+            </KeyboardAwareView>
+        </View>
     );
 }
 
@@ -244,8 +198,6 @@ const styles = StyleSheet.create({
     previewButtons: { flexDirection: 'column', justifyContent: 'space-between', height: 80 },
     attachmentsHorizontal: { marginTop: 8 },
     attachmentImage: { width: 140, height: 140, resizeMode: 'cover', marginRight: 8, borderRadius: 6 },
-    caption: { marginTop: 6, color: '#222' },
-    debugBar: { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-    debugText: { color: '#fff', fontSize: 11 },
+    caption: { marginTop: 6, color: '#222' }
 });
 

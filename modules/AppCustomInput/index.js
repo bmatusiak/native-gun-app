@@ -1,9 +1,9 @@
 
 
 import CustomTextInput from './src/CustomTextInput.android'
-import KeyboardDebugPanel from './src/KeyboardDebugPanel.android'
+import KeyboardAwareView from './src/KeyboardAwareView.android'
 
-// Default export is the native-backed input. The debug panel is exported
-// as a named export so the app can mount it conditionally (separate UI).
-export { KeyboardDebugPanel }
+// Default export is the native-backed input. Named exports are available
+// for debug and keyboard-aware container usage.
+export { KeyboardAwareView }
 export default CustomTextInput
