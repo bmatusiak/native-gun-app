@@ -32,11 +32,11 @@ export default function KeyboardDebugPanel({ visible = true, style, floating = t
         <View pointerEvents="none" style={[containerStyle, style]}>
             <View style={styles.card}>
                 <Text style={styles.title}>Keyboard Debug</Text>
-                <Text>px: {px != null ? String(px) : '—'}</Text>
-                <Text>dp: {dp != null ? String(dp) : '—'}</Text>
-                <Text>imeVisible: {map && map.imeVisible != null ? String(map.imeVisible) : '—'}</Text>
-                <Text>isFloating: {map && map.isFloating != null ? String(map.isFloating) : '—'}</Text>
-                <Text>visibleFrameHeightPx: {map && map.visibleFrameHeightPx != null ? String(map.visibleFrameHeightPx) : '—'}</Text>
+                <Text style={styles.text}>px: {px != null ? String(px) : '—'}</Text>
+                <Text style={styles.text}>dp: {dp != null ? String(dp) : '—'}</Text>
+                <Text style={styles.text}>imeVisible: {map && map.imeVisible != null ? String(map.imeVisible) : '—'}</Text>
+                <Text style={styles.text}>isFloating: {map && map.isFloating != null ? String(map.isFloating) : '—'}</Text>
+                <Text style={styles.text}>visibleFrameHeightPx: {map && map.visibleFrameHeightPx != null ? String(map.visibleFrameHeightPx) : '—'}</Text>
             </View>
         </View>
     )
@@ -74,5 +74,9 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontWeight: '600',
         marginBottom: 4,
+    }
+    ,
+    text: {
+        color: '#fff'
     }
 })
