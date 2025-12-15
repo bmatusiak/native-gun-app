@@ -68,10 +68,16 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
             map.putInt("visibleFrameHeightPx", visibleHeight)
             map.putBoolean("isFloating", isFloating)
             try {
-              reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                .emit("keyboardHeightChanged", map)
+              if (reportedKbHeight > 0) {
+                reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                  .emit("keyboardWillShow", map)
+              } else {
+                // emit hide event when IME not visible
+                reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                  .emit("keyboardWillHide", map)
+              }
             } catch (e: Exception) {
-              AppCustomInputDebug.w("AppCustomInput", "failed to emit keyboardHeightChanged from insets: ${e.message}")
+              AppCustomInputDebug.w("AppCustomInput", "failed to emit keyboard event from insets: ${e.message}")
             }
           } catch (e: Exception) {}
           insets
@@ -86,7 +92,7 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
     try {
         if (globalLayoutListener == null) {
         globalLayoutListener = ViewTreeObserver.OnGlobalLayoutListener {
-          try {
+            try {
             val rect = Rect()
             root.getWindowVisibleDisplayFrame(rect)
             val visibleHeight = rect.height()
@@ -98,12 +104,18 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
             }
             val map: WritableMap = Arguments.createMap()
             map.putInt("keyboardVisibleHeight", kbHeight)
+            map.putInt("visibleFrameHeightPx", visibleHeight)
             map.putBoolean("imeVisible", lastImeVisible)
             try {
-              reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                .emit("keyboardHeightChanged", map)
+              if (kbHeight > 0) {
+                reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                  .emit("keyboardWillShow", map)
+              } else {
+                reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                  .emit("keyboardWillHide", map)
+              }
             } catch (e: Exception) {
-              AppCustomInputDebug.w("AppCustomInput", "failed to emit keyboardHeightChanged: ${e.message}")
+              AppCustomInputDebug.w("AppCustomInput", "failed to emit keyboard event: ${e.message}")
             }
           } catch (e: Exception) {}
         }

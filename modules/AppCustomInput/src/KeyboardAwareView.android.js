@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { View, KeyboardAvoidingView, Keyboard, DeviceEventEmitter, PixelRatio, Platform, StyleSheet, Text, NativeModules } from 'react-native'
+import { View, KeyboardAvoidingView, DeviceEventEmitter, PixelRatio, Platform, StyleSheet, Text, NativeModules, useWindowDimensions } from 'react-native'
 import DebugPanelView from './DebugPanel.android'
 
 export default function KeyboardAwareView({ children, style }) {
@@ -18,8 +18,8 @@ export default function KeyboardAwareView({ children, style }) {
             if (mod && typeof mod.startListening === 'function') mod.startListening()
         } catch (e) { }
 
-        // listen for native keyboard height events
-        const sub = DeviceEventEmitter.addListener('keyboardHeightChanged', (payload) => {
+        // listen for native keyboard size/open events
+        const showSubNative = DeviceEventEmitter.addListener('keyboardWillShow', (payload) => {
             try {
                 if (!payload) return
                 // If the payload explicitly says the IME is not visible, treat height as 0.
@@ -61,31 +61,21 @@ export default function KeyboardAwareView({ children, style }) {
             }
         })
 
-        // fallback to RN Keyboard events
-        const show = (e) => {
-            const h = e && e.endCoordinates ? e.endCoordinates.height : 0
-            const dp = Math.round(h / (PixelRatio.get() || 1))
-            setKeyboardHeight(dp)
-            setLast({ map: null, px: h, dp, ts: Date.now() })
-            if (enableDebug) {
-                try { console.debug('KeyboardAwareView: RN keyboard show', { heightPx: h, dp }) } catch (e) { }
-            }
-        }
-        const hide = () => {
-            setKeyboardHeight(0)
-            setLast(null)
-            // record IME hide time so subsequent global-layout events don't falsely reopen
-            lastImeFalseTs.current = Date.now()
-            if (enableDebug) {
-                try { console.debug('KeyboardAwareView: RN keyboard hide') } catch (e) { }
-            }
-        }
-        const showSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', show)
-        const hideSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', hide)
+        const hideSubNative = DeviceEventEmitter.addListener('keyboardWillHide', (payload) => {
+            try {
+                // explicit hide -> zero height
+                setKeyboardHeight(0)
+                setLast({ map: payload || null, px: 0, dp: 0, ts: Date.now() })
+                lastImeFalseTs.current = Date.now()
+                if (enableDebug) {
+                    try { console.debug('KeyboardAwareView: native keyboard hide', { payload }) } catch (e) { }
+                }
+            } catch (e) { }
+        })
 
         return () => {
-            try { sub && sub.remove && sub.remove() } catch (e) { }
-            try { showSub.remove(); hideSub.remove() } catch (e) { }
+            try { showSubNative && showSubNative.remove && showSubNative.remove() } catch (e) { }
+            try { hideSubNative && hideSubNative.remove && hideSubNative.remove() } catch (e) { }
             try {
                 const mod = NativeModules.AppCustomInput
                 if (mod && typeof mod.stopListening === 'function') mod.stopListening()
@@ -96,6 +86,9 @@ export default function KeyboardAwareView({ children, style }) {
     const px = last ? last.px : null
     const dp = last ? last.dp : null
     const map = last ? last.map : null
+    const dims = useWindowDimensions()
+    const screenPxW = Math.round((dims && dims.width ? dims.width : 0) * (PixelRatio.get() || 1))
+    const screenPxH = Math.round((dims && dims.height ? dims.height : 0) * (PixelRatio.get() || 1))
 
     function DebugPanel() {
         if (enableDebug === false) return null
@@ -106,6 +99,8 @@ export default function KeyboardAwareView({ children, style }) {
                 <Text style={styles.debugText}>dp: {dp != null ? String(dp) : '—'}</Text>
                 <Text style={styles.debugText}>imeVisible: {map && map.imeVisible != null ? String(map.imeVisible) : '—'}</Text>
                 <Text style={styles.debugText}>isFloating: {map && map.isFloating != null ? String(map.isFloating) : '—'}</Text>
+                <Text style={styles.debugText}>Screen W: {screenPxW} px</Text>
+                <Text style={styles.debugText}>Screen H: {screenPxH} px</Text>
                 <Text style={styles.debugText}>visibleFrameHeightPx: {map && map.visibleFrameHeightPx != null ? String(map.visibleFrameHeightPx) : '—'}</Text>
             </DebugPanelView>
         )
