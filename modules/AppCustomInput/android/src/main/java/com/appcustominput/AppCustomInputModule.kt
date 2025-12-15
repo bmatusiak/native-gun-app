@@ -27,6 +27,7 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
   private var globalLayoutListener: ViewTreeObserver.OnGlobalLayoutListener? = null
   private var observedRoot: View? = null
   private var hasInsetsListener = false
+  private var lastImeVisible: Boolean = false
 
   override fun getName(): String = "AppCustomInput"
 
@@ -50,6 +51,7 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
             val imeVisible = compat.isVisible(WindowInsetsCompat.Type.ime())
             val imeInsets = compat.getInsets(WindowInsetsCompat.Type.ime())
             val imeHeight = imeInsets.bottom
+            lastImeVisible = imeVisible
             val rect = Rect()
             v.getWindowVisibleDisplayFrame(rect)
             val visibleHeight = rect.height()
@@ -58,6 +60,11 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
             val map: WritableMap = Arguments.createMap()
             map.putBoolean("imeVisible", imeVisible)
             map.putInt("imeHeightPx", imeHeight)
+            // compute visible keyboard height as totalHeight - visibleFrameHeight (fallback)
+            val kbHeight = if (totalHeight > visibleHeight) totalHeight - visibleHeight else 0
+            // if IME is not visible according to insets, prefer reporting 0 visible height
+            val reportedKbHeight = if (!imeVisible) 0 else kbHeight
+            map.putInt("keyboardVisibleHeight", reportedKbHeight)
             map.putInt("visibleFrameHeightPx", visibleHeight)
             map.putBoolean("isFloating", isFloating)
             try {
@@ -77,16 +84,21 @@ class AppCustomInputModule(reactContext: ReactApplicationContext) : ReactContext
     }
     // attach a global layout listener to observe window visible changes (IME, GIF panel, etc.)
     try {
-      if (globalLayoutListener == null) {
+        if (globalLayoutListener == null) {
         globalLayoutListener = ViewTreeObserver.OnGlobalLayoutListener {
           try {
             val rect = Rect()
             root.getWindowVisibleDisplayFrame(rect)
             val visibleHeight = rect.height()
             val totalHeight = root.height
-            val kbHeight = if (totalHeight > visibleHeight) totalHeight - visibleHeight else 0
+            var kbHeight = if (totalHeight > visibleHeight) totalHeight - visibleHeight else 0
+            // if the insets listener recently reported IME not visible, suppress transient global-layout kbHeight
+            if (!lastImeVisible) {
+              kbHeight = 0
+            }
             val map: WritableMap = Arguments.createMap()
             map.putInt("keyboardVisibleHeight", kbHeight)
+            map.putBoolean("imeVisible", lastImeVisible)
             try {
               reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 .emit("keyboardHeightChanged", map)
