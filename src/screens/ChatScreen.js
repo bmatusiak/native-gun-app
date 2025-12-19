@@ -3,7 +3,8 @@ import { Platform, View, Text, ScrollView, TextInput, Button, StyleSheet, Image,
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import GunService from '../GunService';
-import CustomTextInput, { KeyboardAwareView } from 'app-custom-input';
+import CustomTextInput from 'app-custom-input';
+import KeyboardAwareView from 'keyboard-aware-view';
 import * as FileSystem from 'expo-file-system';
 
 export default function ChatScreen() {
