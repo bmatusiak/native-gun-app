@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { View, KeyboardAvoidingView, DeviceEventEmitter, PixelRatio, Platform, StyleSheet, Text, NativeModules, useWindowDimensions } from 'react-native'
 import DebugPanelView from './DebugPanel.android'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 export default function KeyboardAwareView({ children, style }) {
     let enableDebug = false
@@ -63,6 +64,8 @@ export default function KeyboardAwareView({ children, style }) {
     const dims = useWindowDimensions()
     const screenPxW = Math.round((dims && dims.width ? dims.width : 0) * (PixelRatio.get() || 1))
     const screenPxH = Math.round((dims && dims.height ? dims.height : 0) * (PixelRatio.get() || 1))
+    const insets = useSafeAreaInsets()
+    const bottomPad = Math.max(keyboardHeight || 0, (insets && insets.bottom) ? insets.bottom : 0)
 
     function DebugPanel() {
         if (enableDebug === false) return null
@@ -85,9 +88,9 @@ export default function KeyboardAwareView({ children, style }) {
         <>
             <DebugPanel />
             {/* <KeyboardAvoidingView style={[styles.container, style]} behavior={'height'}> */}
-            <View style={[styles.content, { paddingBottom: keyboardHeight }]}>
+            <SafeAreaView edges={["left", "right", "top"]} style={[styles.content, { paddingBottom: bottomPad }, style]}>
                 {children}
-            </View>
+            </SafeAreaView>
             {/* </KeyboardAvoidingView> */}
         </>
     )
