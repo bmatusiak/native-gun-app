@@ -61,11 +61,12 @@ export default function KeyboardAwareView({ children, style }) {
     const px = last ? last.px : null
     const dp = last ? last.dp : null
     const map = last ? last.map : null
-    const dims = useWindowDimensions()
+    const dims = useWindowDimensions();
+    const isFloating = map ? map.isFloating : false;
     const screenPxW = Math.round((dims && dims.width ? dims.width : 0) * (PixelRatio.get() || 1))
     const screenPxH = Math.round((dims && dims.height ? dims.height : 0) * (PixelRatio.get() || 1))
     const insets = useSafeAreaInsets()
-    const bottomPad = Math.max(keyboardHeight || 0, (insets && insets.bottom) ? insets.bottom : 0)
+    const bottomPad = isFloating ? Math.round((map.floatingToolbarHeight) / (PixelRatio.get() || 1)) : Math.max(keyboardHeight || 0, (insets && insets.bottom) ? insets.bottom : 0)
 
     function DebugPanel() {
         if (enableDebug === false) return null
@@ -79,6 +80,8 @@ export default function KeyboardAwareView({ children, style }) {
                 <Text style={styles.debugText}>Screen W: {screenPxW} px</Text>
                 <Text style={styles.debugText}>Screen H: {screenPxH} px</Text>
                 <Text style={styles.debugText}>keyboardDem px: {map && map.keyboardDem != null ? String(map.keyboardDem) : '—'}</Text>
+                <Text style={styles.debugText}>floatingToolbar px: {map && map.floatingToolbarHeight != null ? String(map.floatingToolbarHeight) : '—'}</Text>
+                <Text style={styles.debugText}>floatingToolbar dp: {map && map.floatingToolbarHeight != null ? String(Math.round((map.floatingToolbarHeight) / (PixelRatio.get() || 1))) : '—'}</Text>
                 <Text style={styles.debugText}>keyboardHeight: {keyboardHeight}</Text>
             </DebugPanelView>
         )
